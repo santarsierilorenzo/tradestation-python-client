@@ -14,6 +14,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+
 def get_bars(
     token: str,
     *,
@@ -25,7 +26,57 @@ def get_bars(
     last_date: Optional[str] = None,
     sessiontemplate: Optional[str] = None,
 ) -> Dict:
-    """Retrieve historical market data bars for a given symbol."""
+    """
+    Retrieve historical market data bars for a given symbol and timeframe.
+
+    This function calls the TradeStation REST endpoint
+    `/v3/marketdata/barcharts/{symbol}` to obtain aggregated OHLCV
+    data for the specified instrument. Bars can be fetched either by
+    a `barsback` count or by a date range (`firstdate` / `lastdate`).
+
+    Parameters
+    ----------
+    token : str
+        OAuth2 bearer token for the TradeStation API.
+    symbol : str
+        The instrument symbol (e.g., "MSFT").
+    interval : int, default=1
+        Interval size for each bar. For intraday data, this represents
+        minutes per bar.
+    unit : str, default="Daily"
+        Time unit for bars. Valid values: "Minute", "Daily",
+        "Weekly", "Monthly".
+    barsback : int, optional
+        Number of bars to retrieve. Mutually exclusive with `firstdate`.
+        Max value: 57,600 for intraday data.
+    first_date : str, optional
+        Start timestamp in ISO 8601 format.
+    last_date : str, optional
+        End timestamp in ISO 8601 format. Defaults to current date.
+    sessiontemplate : str, optional
+        U.S. equity session template. Valid values:
+        "USEQPre", "USEQPost", "USEQPreAndPost",
+        "USEQ24Hour", "Default".
+
+    Returns
+    -------
+    dict
+        JSON response containing a list of bar objects with fields:
+        `Time`, `Open`, `High`, `Low`, `Close`, and `Volume`.
+
+    Raises
+    ------
+    ValueError
+        If invalid or conflicting parameters are provided.
+    requests.exceptions.RequestException
+        On network or HTTP error.
+
+    Notes
+    -----
+    - Intraday requests are limited to 57,600 bars per call.
+    - `barsback` and `first_date` cannot be used together.
+    - Session templates apply only to U.S. equity symbols.
+    """
     if barsback and first_date:
         raise ValueError("barsback and firstdate are mutually exclusive")
     if barsback and barsback > 57_600:
@@ -67,7 +118,53 @@ def get_bars_between(
     sessiontemplate: Optional[str] = None,
     max_workers: int = 15,
 ) -> Dict:
-    """Retrieve bars between two dates with chunking and concurrency."""
+    """
+    Retrieve market data bars between two dates with automatic chunking
+    and parallel requests.
+
+    This function splits large intraday ranges into smaller date chunks
+    to comply with the TradeStation API limit (57,600 bars per call).
+    Each chunk is fetched concurrently using a thread pool, and all
+    partial results are merged chronologically.
+
+    Parameters
+    ----------
+    token : str
+        OAuth2 bearer token for authentication.
+    symbol : str
+        The instrument symbol (e.g., "MSFT").
+    first_date : str
+        Start timestamp (ISO 8601 format).
+    interval : int, default=1
+        Number of minutes per bar for intraday data.
+    unit : str, default="Daily"
+        Bar time unit: "Minute", "Daily", "Weekly", "Monthly".
+    last_date : str, optional
+        End timestamp (ISO 8601). Defaults to today's date.
+    sessiontemplate : str, optional
+        U.S. equity session template. Ignored for non-U.S. symbols.
+    max_workers : int, default=15
+        Maximum number of threads for parallel requests.
+
+    Returns
+    -------
+    dict
+        Combined JSON response containing all bars, sorted by time.
+
+    Raises
+    ------
+    ValueError
+        If invalid or conflicting parameters are provided.
+    requests.exceptions.RequestException
+        If any HTTP request fails.
+
+    Notes
+    -----
+    - Intraday requests are split automatically when exceeding limits.
+    - Non-minute units (daily/weekly/monthly) are retrieved in a single
+      request.
+    - All merged results preserve chronological order.
+    """
     if not last_date:
         last_date = date.today().strftime("%Y-%m-%d")
 
@@ -107,7 +204,9 @@ def get_bars_between(
         start = str(dates[i])
         end = str(dates[min(i + max_days - 1, len(dates) - 1)])
         chunks.append((start, end))
-    log.info(f"{symbol} split into {len(chunks)} chunks (~{int(bars_est)} bars)")
+    log.info(
+        f"{symbol} split into {len(chunks)} chunks (~{int(bars_est)} bars)"
+    )
 
     merged = {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
@@ -149,72 +248,62 @@ def stream_bars(
     Stream live bar data for a given symbol using the TradeStation
     Market Data HTTP streaming endpoint.
 
-    This function establishes a persistent HTTP connection to the
-    TradeStation `/stream/barcharts/{symbol}` endpoint and yields each
-    bar update as soon as it is received. The connection remains open
-    until closed by the server or interrupted locally. If the
-    connection drops, it is automatically re-established after a short
-    delay.
-
-    The stream produces new data only when the market is active and a
-    new bar is completed. When no data is available, the function
-    remains idle but keeps the connection alive.
+    This function opens a persistent HTTP connection to the endpoint
+    `/v3/marketdata/stream/barcharts/{symbol}` and yields each bar
+    update as soon as it is received. If the connection drops, it is
+    automatically re-established after `reconnect_delay` seconds.
 
     Parameters
     ----------
     token : str
         OAuth2 bearer token for the TradeStation API.
     symbol : str
-        Market symbol to stream (e.g., "MSFT", "AAPL").
+        Instrument symbol to stream (e.g., "MSFT").
     interval : int, default=1
         Number of minutes per bar. Must be 1 for non-minute units.
     unit : str, default="minute"
-        Timeframe of each bar. Valid values: "minute", "daily",
-        "weekly", "monthly".
+        Bar timeframe: "minute", "daily", "weekly", "monthly".
     barsback : int, optional
-        Number of historical bars to fetch initially before streaming
-        new updates.
+        Number of historical bars to fetch before live updates.
     sessiontemplate : str, optional
-        Market session template used to include pre- and post-market
-        data for U.S. equities. Valid values: "USEQPre", "USEQPost",
+        Session template to include pre/post-market data for U.S.
+        equities. Valid values: "USEQPre", "USEQPost",
         "USEQPreAndPost", "USEQ24Hour", "Default".
     reconnect_delay : int, default=5
-        Number of seconds to wait before reconnecting after a
-        disconnection or error.
+        Seconds to wait before reconnecting after a disconnection.
     heartbeat_timeout : int, default=60
-        Number of seconds without data before logging a heartbeat
-        message to confirm the connection is still alive.
+        Seconds of inactivity before logging a heartbeat message.
 
     Yields
     ------
     dict
-        A parsed JSON message from the streaming endpoint. Each message
-        typically includes:
-            - "Symbol": Instrument symbol.
-            - "Bars": List of one or more bar objects, each containing:
-                - "TimeStamp": Bar closing time (ISO 8601).
-                - "Open": Opening price.
-                - "High": Highest price.
-                - "Low": Lowest price.
-                - "Close": Closing price.
-                - "Volume": Traded volume.
+        JSON message containing bar data. Each update typically
+        includes:
+          - "Symbol": instrument name.
+          - "Bars": list of bar objects with keys:
+              "TimeStamp", "Open", "High", "Low", "Close", "Volume".
 
     Raises
     ------
     requests.exceptions.RequestException
         On HTTP or network failure.
     json.JSONDecodeError
-        If the received chunk cannot be decoded as JSON.
+        If a received chunk cannot be parsed as JSON.
 
     Notes
     -----
-    - The function blocks while waiting for new data. It should be run
-      in a background thread or asynchronous task when used in GUI or
-      multi-stream contexts.
-    - When the market is closed, the connection stays open but no new
-      data is streamed.
-    - To stop streaming, break out of the generator loop or close the
-      process explicitly.
+    - The function blocks while waiting for new data and should be
+      executed in a background thread or separate process.
+    - When the market is closed, the connection stays alive but no
+      updates are streamed.
+    - To stop streaming, break out of the generator loop manually.
+
+    Examples
+    --------
+    >>> for msg in stream_bars(token, symbol="MSFT"):
+    ...     if "Bars" in msg:
+    ...         bar = msg["Bars"][-1]
+    ...         print(bar["TimeStamp"], bar["Close"])
     """
     url = (
         f"https://api.tradestation.com/v3/marketdata/"
@@ -251,16 +340,12 @@ def stream_bars(
                         data = json.loads(line.decode("utf-8"))
                         last_event = time.time()
                         yield data
-
                     except json.JSONDecodeError:
                         log.warning(f"Invalid JSON chunk for {symbol}")
-
         except requests.exceptions.ChunkedEncodingError:
             log.warning(f"{symbol} chunked encoding error, reconnecting")
-
         except requests.exceptions.RequestException as e:
             log.error(f"{symbol} stream error: {e}")
-
         except Exception as e:
             log.exception(f"Unexpected stream error for {symbol}: {e}")
 
