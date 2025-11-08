@@ -169,7 +169,6 @@ def get_bars_between(
         - `barsback` and date-based parameters are mutually exclusive.
     """
 
-
     if last_date is None:
         last_date = date.today().strftime("%Y-%m-%d")
 
