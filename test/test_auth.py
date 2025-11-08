@@ -87,7 +87,7 @@ def test_refresh_success(
     mock_response = MagicMock()
     mock_response.json.return_value = {
         "access_token": "newtoken",
-        "expires_in": 3600,
+        "expires_in": 1200,
         "token_type": "Bearer",
     }
     mock_response.raise_for_status.return_value = None
@@ -101,12 +101,7 @@ def test_refresh_success(
     mock_post.assert_called_once()
 
 
-@patch.object(
-    TokenManager,
-    "_is_expired",
-    return_value=False
-)
-
+@patch.object(TokenManager, "_is_expired", return_value=False)
 def test_get_token_returns_existing(
     mock_expired,
     valid_token_data
@@ -151,4 +146,3 @@ def test_thread_safety(mock_refresh, valid_token_data):
     for t in threads: t.join()
 
     mock_refresh.assert_called_once()
-
