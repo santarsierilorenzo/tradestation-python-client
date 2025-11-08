@@ -61,4 +61,3 @@ This approach provides:
 - **automatic chunking** of intraday requests,  
 - **safe token reuse** across concurrent threads.
 
-> In internal testing, running 10 parallel workers reduced historical data fetch time by about **two-thirds** compared to sequential requests.
