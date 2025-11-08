@@ -132,13 +132,16 @@ def test_get_token_refreshes_if_expired(
     mock_refresh.assert_called_once()
 
 
-@patch.object(TokenManager, "_refresh", return_value="threadtoken")
-def test_thread_safety(
-    mock_refresh,
-    valid_token_data
-):
+@patch.object(TokenManager, "_refresh")
+def test_thread_safety(mock_refresh, valid_token_data):
     tm = TokenManager()
     tm.token_data = {}
+
+    def fake_refresh():
+        tm.token_data = valid_token_data
+        return valid_token_data["access_token"]
+
+    mock_refresh.side_effect = fake_refresh
 
     def worker():
         tm.get_token()
@@ -147,4 +150,5 @@ def test_thread_safety(
     for t in threads: t.start()
     for t in threads: t.join()
 
-    mock_refresh.assert_called_once()  # refresh should still happen once
+    mock_refresh.assert_called_once()
+

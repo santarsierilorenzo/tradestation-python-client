@@ -101,23 +101,32 @@ class TokenManager:
         Check whether the current Bearer token has expired.
 
         Returns:
-            bool: True if the token is expired or missing, False otherwise.
+            bool: True if the token is expired, incomplete, or missing.
         """
+        data = self.token_data
+
         # If no token data is loaded, treat it as expired.
-        if not self.token_data:
+        if not data:
             return True
 
-        # Compute the expiration timestamp.
-        # A 30-second safety buffer is subtracted since 'obtained_at' is an
-        # estimate.
-        exp = (
-            self.token_data["obtained_at"]
-            + self.token_data["expires_in"]
-            - 30
-        )
+        # Missing required fields, treat it as expired.
+        obtained_at = data.get("obtained_at")
+        expires_in = data.get("expires_in")
+
+        if obtained_at is None or expires_in is None:
+            return True
+
+        try:
+            # Compute the expiration timestamp.
+            # A 30-second safety buffer is subtracted since 'obtained_at' is an
+            # estimate.
+            exp_timestamp = int(obtained_at) + int(expires_in) - 30
+        except (TypeError, ValueError):
+            # Invalid data types → force refresh
+            return True
 
         # Return True if the current time is beyond the expiration threshold.
-        return time.time() >= exp
+        return time.time() >= exp_timestamp
 
     def _refresh(self) -> str:
         """
@@ -163,20 +172,28 @@ class TokenManager:
 
     def get_token(self) -> str:
         """
-        Public method used to obtain a valid Bearer token for API requests.
+        Retrieve a valid Bearer access token in a thread-safe manner.
 
-        This method is thread-safe:
-        - If no token is loaded or the current token has expired, it acquires
-        the class-level lock and triggers a refresh.
-        - Otherwise, it simply returns the existing valid token.
+        This method ensures that only one thread performs a token refresh
+        when the token is missing or expired. Other threads that attempt to
+        access the token concurrently will wait for the refresh to complete,
+        then reuse the newly obtained token.
 
         Returns:
-            str: The active access token.
+            str: The current valid access token.
         """
-        with TokenManager._lock:
-            # If the token is missing or expired, refresh it.
-            if not self.token_data or self._is_expired():
-                return self._refresh()
-
-            # Otherwise, return the current valid access token.
+        # First check without acquiring the lock (fast path)
+        if self.token_data and not self._is_expired():
             return self.token_data["access_token"]
+
+        # Acquire the class-level lock for refresh operations
+        with TokenManager._lock:
+            # Re-check after acquiring the lock to avoid duplicate refresh
+            if self.token_data and not self._is_expired():
+                return self.token_data["access_token"]
+
+            # Perform token refresh
+            new_token = self._refresh()
+            self.token_data["access_token"] = new_token
+            return new_token
+
