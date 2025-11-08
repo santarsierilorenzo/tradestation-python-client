@@ -145,7 +145,77 @@ def stream_bars(
     reconnect_delay: int = 5,
     heartbeat_timeout: int = 60,
 ) -> Generator[Dict[str, Any], None, None]:
-    """Stream TradeStation bar data using HTTP chunked transfer."""
+    """
+    Stream live bar data for a given symbol using the TradeStation
+    Market Data HTTP streaming endpoint.
+
+    This function establishes a persistent HTTP connection to the
+    TradeStation `/stream/barcharts/{symbol}` endpoint and yields each
+    bar update as soon as it is received. The connection remains open
+    until closed by the server or interrupted locally. If the
+    connection drops, it is automatically re-established after a short
+    delay.
+
+    The stream produces new data only when the market is active and a
+    new bar is completed. When no data is available, the function
+    remains idle but keeps the connection alive.
+
+    Parameters
+    ----------
+    token : str
+        OAuth2 bearer token for the TradeStation API.
+    symbol : str
+        Market symbol to stream (e.g., "MSFT", "AAPL").
+    interval : int, default=1
+        Number of minutes per bar. Must be 1 for non-minute units.
+    unit : str, default="minute"
+        Timeframe of each bar. Valid values: "minute", "daily",
+        "weekly", "monthly".
+    barsback : int, optional
+        Number of historical bars to fetch initially before streaming
+        new updates.
+    sessiontemplate : str, optional
+        Market session template used to include pre- and post-market
+        data for U.S. equities. Valid values: "USEQPre", "USEQPost",
+        "USEQPreAndPost", "USEQ24Hour", "Default".
+    reconnect_delay : int, default=5
+        Number of seconds to wait before reconnecting after a
+        disconnection or error.
+    heartbeat_timeout : int, default=60
+        Number of seconds without data before logging a heartbeat
+        message to confirm the connection is still alive.
+
+    Yields
+    ------
+    dict
+        A parsed JSON message from the streaming endpoint. Each message
+        typically includes:
+            - "Symbol": Instrument symbol.
+            - "Bars": List of one or more bar objects, each containing:
+                - "TimeStamp": Bar closing time (ISO 8601).
+                - "Open": Opening price.
+                - "High": Highest price.
+                - "Low": Lowest price.
+                - "Close": Closing price.
+                - "Volume": Traded volume.
+
+    Raises
+    ------
+    requests.exceptions.RequestException
+        On HTTP or network failure.
+    json.JSONDecodeError
+        If the received chunk cannot be decoded as JSON.
+
+    Notes
+    -----
+    - The function blocks while waiting for new data. It should be run
+      in a background thread or asynchronous task when used in GUI or
+      multi-stream contexts.
+    - When the market is closed, the connection stays open but no new
+      data is streamed.
+    - To stop streaming, break out of the generator loop or close the
+      process explicitly.
+    """
     url = (
         f"https://api.tradestation.com/v3/marketdata/"
         f"stream/barcharts/{symbol}"
@@ -181,12 +251,16 @@ def stream_bars(
                         data = json.loads(line.decode("utf-8"))
                         last_event = time.time()
                         yield data
+
                     except json.JSONDecodeError:
                         log.warning(f"Invalid JSON chunk for {symbol}")
+
         except requests.exceptions.ChunkedEncodingError:
             log.warning(f"{symbol} chunked encoding error, reconnecting")
+
         except requests.exceptions.RequestException as e:
             log.error(f"{symbol} stream error: {e}")
+
         except Exception as e:
             log.exception(f"Unexpected stream error for {symbol}: {e}")
 
