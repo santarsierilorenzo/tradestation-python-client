@@ -134,3 +134,29 @@ def test_stream_quotes_raises_too_many_symbols():
 
     with pytest.raises(ValueError, match="Maximum 100 symbols"):
         api.stream_quotes(symbols=symbols)
+
+
+@patch.object(MarketDataStream, "stream_loop")
+def test_stream_market_depth_quotes_success(mock_stream_loop):
+    """Ensure market depth stream starts correctly with valid inputs."""
+    tm = MagicMock()
+    api = MarketDataStream(token_manager=tm)
+
+    api.stream_market_depth_quotes(symbol="AAPL", max_levels=10)
+
+    mock_stream_loop.assert_called_once()
+    call = mock_stream_loop.call_args.kwargs
+
+    assert "marketdepth/quotes/AAPL" in call["url"]
+    assert call["params"]["maxlevels"] == 10
+    assert "Authorization" in call["headers"]
+    assert call["headers"]["Accept"].startswith("application/vnd.tradestation")
+
+
+def test_stream_market_depth_quotes_no_symbol():
+    """Ensure ValueError is raised if no symbol is provided."""
+    tm = MagicMock()
+    api = MarketDataStream(token_manager=tm)
+
+    with pytest.raises(ValueError, match="symbol"):
+        api.stream_market_depth_quotes(symbol="")
