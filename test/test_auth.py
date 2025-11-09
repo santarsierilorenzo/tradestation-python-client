@@ -8,11 +8,17 @@ import time
 
 @pytest.fixture
 def tmp_token_file(tmp_path):
+    """
+    Provide a temporary file path used to store token data.
+    """
     return tmp_path / ".token.json"
 
 
 @pytest.fixture
 def valid_token_data():
+    """
+    Return a dictionary representing a valid token structure.
+    """
     return {
         "access_token": "abc123",
         "id_token": "id456",
@@ -24,26 +30,28 @@ def valid_token_data():
     }
 
 
-def test_load_valid_token(
-    tmp_token_file,
-    valid_token_data
-):
+def test_load_valid_token(tmp_token_file, valid_token_data):
+    """
+    Ensure a valid JSON token file is correctly loaded into memory.
+    """
     tmp_token_file.write_text(json.dumps(valid_token_data))
     tm = TokenManager(token_file=str(tmp_token_file))
     assert tm.token_data == valid_token_data
 
 
-def test_load_invalid_json(
-    tmp_token_file
-):
+def test_load_invalid_json(tmp_token_file):
+    """
+    Verify that invalid JSON results in an empty token dictionary.
+    """
     tmp_token_file.write_text("{invalid_json")
     tm = TokenManager(token_file=str(tmp_token_file))
     assert tm.token_data == {}
 
 
-def test_is_expired_returns_true_if_expired(
-    valid_token_data
-):
+def test_is_expired_returns_true_if_expired(valid_token_data):
+    """
+    Check that _is_expired() returns True for expired tokens.
+    """
     valid_token_data["expires_in"] = 1
     valid_token_data["obtained_at"] = int(time.time()) - 1000
     tm = TokenManager()
@@ -51,19 +59,20 @@ def test_is_expired_returns_true_if_expired(
     assert tm._is_expired() is True
 
 
-def test_is_expired_returns_false_if_valid(
-    valid_token_data
-):
+def test_is_expired_returns_false_if_valid(valid_token_data):
+    """
+    Check that _is_expired() returns False for still-valid tokens.
+    """
     valid_token_data["obtained_at"] = int(time.time()) - 100
     tm = TokenManager()
     tm.token_data = valid_token_data
     assert tm._is_expired() is False
 
 
-def test_save_writes_file_and_updates_memory(
-    tmp_token_file,
-    valid_token_data
-):
+def test_save_writes_file_and_updates_memory(tmp_token_file, valid_token_data):
+    """
+    Ensure _save() writes token data to file and updates memory copy.
+    """
     tm = TokenManager(token_file=str(tmp_token_file))
     tm._save(valid_token_data)
     saved = json.loads(tmp_token_file.read_text())
@@ -74,16 +83,19 @@ def test_save_writes_file_and_updates_memory(
 
 
 @patch("requests.post")
-@patch.dict("os.environ", {
-    "TS_TOKEN_URL": "https://example.com",
-    "TS_CLIENT_ID": "id",
-    "TS_CLIENT_SECRET": "secret",
-    "TS_REFRESH_TOKEN": "rftoken"
-})
-def test_refresh_success(
-    mock_post,
-    tmp_token_file
-):
+@patch.dict(
+    "os.environ",
+    {
+        "TS_TOKEN_URL": "https://example.com",
+        "TS_CLIENT_ID": "id",
+        "TS_CLIENT_SECRET": "secret",
+        "TS_REFRESH_TOKEN": "rftoken",
+    },
+)
+def test_refresh_success(mock_post, tmp_token_file):
+    """
+    Test that _refresh() performs a token refresh and saves the result.
+    """
     mock_response = MagicMock()
     mock_response.json.return_value = {
         "access_token": "newtoken",
@@ -102,10 +114,10 @@ def test_refresh_success(
 
 
 @patch.object(TokenManager, "_is_expired", return_value=False)
-def test_get_token_returns_existing(
-    mock_expired,
-    valid_token_data
-):
+def test_get_token_returns_existing(mock_expired, valid_token_data):
+    """
+    Verify get_token() returns the cached token if still valid.
+    """
     tm = TokenManager()
     tm.token_data = valid_token_data
     token = tm.get_token()
@@ -120,6 +132,9 @@ def test_get_token_refreshes_if_expired(
     mock_expired,
     valid_token_data
 ):
+    """
+    Check that get_token() triggers a refresh when the token is expired.
+    """
     tm = TokenManager()
     tm.token_data = valid_token_data
     token = tm.get_token()
@@ -129,6 +144,9 @@ def test_get_token_refreshes_if_expired(
 
 @patch.object(TokenManager, "_refresh")
 def test_thread_safety(mock_refresh, valid_token_data):
+    """
+    Ensure get_token() is thread-safe and refreshes only once.
+    """
     tm = TokenManager()
     tm.token_data = {}
 
@@ -142,7 +160,9 @@ def test_thread_safety(mock_refresh, valid_token_data):
         tm.get_token()
 
     threads = [threading.Thread(target=worker) for _ in range(5)]
-    for t in threads: t.start()
-    for t in threads: t.join()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
     mock_refresh.assert_called_once()
