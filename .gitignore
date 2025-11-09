@@ -26,6 +26,7 @@ venv/
 env/
 Pipfile.lock
 poetry.lock
+.token.json
 
 # System / OS files
 .DS_Store
