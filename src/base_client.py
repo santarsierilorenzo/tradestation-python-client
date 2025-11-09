@@ -47,4 +47,5 @@ class BaseAPIClient:
             resp = _get(params)
 
         resp.raise_for_status()
+        
         return resp.json()
