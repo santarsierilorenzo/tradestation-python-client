@@ -120,3 +120,44 @@ def test_get_balances_too_many_accounts(token_manager):
     api = Brokerage(token_manager=token_manager)
     with pytest.raises(ValueError, match="Maximum 100 accounts"):
         api.get_balances(accounts=["acc"] * 101)
+
+
+@patch.object(Brokerage, "make_request")
+def test_get_balances_bod_success(mock_make, token_manager):
+    """
+    Ensure get_balances_bod() builds URL correctly and returns data.
+    """
+    mock_make.return_value = {"BODBalances": [{"AccountID": "ACC1"}]}
+
+    api = Brokerage(token_manager=token_manager)
+    result = api.get_balances_bod(accounts=["ACC1", "ACC2"])
+
+    assert isinstance(result, dict)
+    assert "BODBalances" in result
+    mock_make.assert_called_once()
+
+    called_url = mock_make.call_args.kwargs["url"]
+    assert called_url.startswith(
+        "https://api.tradestation.com/v3/brokerage/accounts/"
+    )
+    assert called_url.endswith("/bodbalances")
+    assert "ACC1" in called_url and "ACC2" in called_url
+    assert called_url.count(",") == 1  # Comma separation check
+
+
+def test_get_balances_bod_empty_list(token_manager):
+    """
+    Ensure get_balances_bod() raises on empty account list.
+    """
+    api = Brokerage(token_manager=token_manager)
+    with pytest.raises(ValueError, match="At least one account"):
+        api.get_balances_bod(accounts=[])
+
+
+def test_get_balances_bod_too_many_accounts(token_manager):
+    """
+    Ensure get_balances_bod() raises if more than 100 accounts are provided.
+    """
+    api = Brokerage(token_manager=token_manager)
+    with pytest.raises(ValueError, match="Maximum 100 accounts"):
+        api.get_balances_bod(accounts=["ACC"] * 101)
