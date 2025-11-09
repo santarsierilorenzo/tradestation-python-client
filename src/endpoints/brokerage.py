@@ -286,3 +286,91 @@ class Brokerage(BaseAPIClient):
 
         return response
 
+    def get_historical_orders_by_id(
+    self,
+    *,
+    accounts: list[str],
+    order_ids: list[str],
+    since: str,
+) -> Dict:
+        """
+        Retrieve specific historical orders by ID for given accounts.
+
+        This endpoint returns details of closed (non-open) orders matching
+        the provided order IDs. The query is valid for all account types.
+
+        Parameters
+        ----------
+        accounts : list of str
+            One or more account IDs to query (maximum 100).
+        order_ids : list of str
+            One or more order IDs to retrieve (maximum 100).
+        since : str
+            Date string in 'YYYY-MM-DD' format, must be within
+            the past 90 days.
+
+        Returns
+        -------
+        dict
+            JSON response containing the matching historical orders.
+            Each entry typically includes:
+            - `OrderID`: Unique order identifier
+            - `Symbol`: Traded instrument
+            - `Quantity`: Order size
+            - `ClosedDateTime`: When the order was closed
+
+        Raises
+        ------
+        ValueError
+            If `accounts` or `order_ids` are empty or exceed 100,
+            or if `since` is older than 90 days.
+        requests.exceptions.RequestException
+            If the HTTP request fails or the API returns an error.
+
+        Notes
+        -----
+        - Orders are returned in descending close-time order.
+        - Requires a valid access token.
+        """
+        if not accounts:
+            raise ValueError("At least one account must be provided.")
+
+        if not order_ids:
+            raise ValueError("At least one order ID must be provided.")
+
+        if len(accounts) > 100:
+            raise ValueError("Maximum 100 accounts allowed per request.")
+
+        if len(order_ids) > 100:
+            raise ValueError("Maximum 100 order IDs allowed per request.")
+
+        date_since = datetime.strptime(since, "%Y-%m-%d").date()
+        if (datetime.now().date() - date_since).days > 90:
+            raise ValueError("`since` must be within the past 90 days.")
+
+        accounts_as_str = ",".join(
+            [requests.utils.quote(acc.strip()) for acc in accounts]
+        )
+
+        ids_as_str = ",".join(
+            [requests.utils.quote(oid.strip()) for oid in order_ids]
+        )
+
+        url = (
+            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{accounts_as_str}/historicalorders/{ids_as_str}"
+        )
+
+        token = self.token_manager.get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        params = {"since": since}
+
+        response = self.make_request(
+            url=url,
+            headers=headers,
+            params=params
+        )
+
+        return response
+    
