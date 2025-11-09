@@ -331,3 +331,50 @@ class MarketDataAPI(BaseAPIClient):
 
         return self.make_request(url=url, headers=headers, params={})
 
+    def get_quote_snapshots(
+        self,
+        *,
+        symbols: list[str]
+    ) -> Dict:
+        """
+        Fetches a full snapshot of the latest quotes for the given symbols.
+
+        This method returns the most recent quote (Level 1) information
+        for each symbol specified. For real-time continuous updates,
+        use the streaming quote endpoint.
+
+        Parameters
+        ----------
+        symbols : list of str
+            One or more market symbols (e.g., ["AAPL", "MSFT"]).
+
+        Returns
+        -------
+        dict
+            JSON response mapping each symbol to its latest quote data.
+
+        Raises
+        ------
+        ValueError
+            If no symbols are provided or more than 100 symbols are specified.
+        """
+
+        if not symbols:
+            raise ValueError("At least one symbol must be provided.")
+
+        if len(symbols) > 100:
+            raise ValueError("Maximum 100 symbols allowed per request.")
+
+        symbols_as_str = ",".join(
+            [requests.utils.quote(sym.strip()) for sym in symbols]
+        )
+
+        url = (
+            f"https://api.tradestation.com/v3/marketdata/quotes/"
+            f"{symbols_as_str}"
+        )
+        token = self.token_manager.get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        return self.make_request(url=url, headers=headers, params={})
+
