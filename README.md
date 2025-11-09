@@ -19,14 +19,14 @@
 
 <p align="center">
   <b>Fully Thread-Safe · Streaming Ready · Designed for Real-Time Trading</b><br>
-  <i>Developed with ❤️ by Lorenzo Santarsieri · Built for TradeStation REST & Stream APIs</i>
+  <i>Developed with ❤️ by Lorenzo Santarsieri · Built for TradeStation APIs</i>
 </p>
 
 
 &nbsp;
 
 ## ⚠️ Disclaimer & Security
-**tradestation-api-python** is an **unofficial SDK** for interacting with TradeStation REST and Streaming APIs.  
+**tradestation-api-python** is an **unofficial SDK** for interacting with TradeStation APIs.  
 It’s designed for research, prototyping, and automated trading integrations.  
 Not affiliated with or endorsed by TradeStation Technologies, Inc.
 
