@@ -1,5 +1,6 @@
 from src.base_client import BaseAPIClient
 from typing import Dict
+import requests
 
 
 class Brokerage(BaseAPIClient):
@@ -58,6 +59,67 @@ class Brokerage(BaseAPIClient):
         - Data returned may vary based on account type and permissions.
         """
         url = "https://api.tradestation.com/v3/brokerage/accounts"
+        token = self.token_manager.get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = self.make_request(
+            url=url,
+            headers=headers,
+            params={}
+        )
+
+        return response
+
+    def get_balances(
+        self,
+        *,
+        accounts: list[str]
+    ) -> Dict:
+        """
+        Retrieve account balances for one or more specified accounts.
+
+        Parameters
+        ----------
+        accounts : list of str
+            One or more account IDs to query (max 100).
+
+        Returns
+        -------
+        dict
+            JSON response containing balance data for each account,
+            including typical fields such as:
+              - `AccountID`: Account identifier
+              - `CashBalance`: Current cash available
+              - `NetWorth`: Total account value
+              - `MarginBalance`: Outstanding margin balance
+
+        Raises
+        ------
+        ValueError
+            If no accounts are provided or more than 100 accounts are passed.
+        requests.exceptions.RequestException
+            If the HTTP request fails or the API returns an error.
+
+        Notes
+        -----
+        - Input accounts are URL-encoded automatically.
+        - Requires a valid access token.
+        """
+        if not accounts:
+            raise ValueError("At least one account must be provided.")
+
+        if len(accounts) > 100:
+            raise ValueError("Maximum 100 accounts allowed per request.")
+
+        accounts_as_str = ",".join(
+            [requests.utils.quote(acc.strip()) for acc in accounts]
+        )
+
+        url = (
+            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{accounts_as_str}/balances"
+        )
+
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
