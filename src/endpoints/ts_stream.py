@@ -264,6 +264,13 @@ class MarketDataStream(BaseStreamClient):
 
 
 class BrokerStream(BaseStreamClient):
+    """
+    Streams real-time order updates from the TradeStation Brokerage API.
+
+    This stream delivers order status events (e.g. placed, filled, canceled)
+    for one or more brokerage accounts.
+    """
+
     def __init__(self, *, token_manager):
         super().__init__(token_manager=token_manager)
 
@@ -274,6 +281,14 @@ class BrokerStream(BaseStreamClient):
         on_message=None,
     ) -> None:
         """
+        Stream real-time order updates for the given accounts.
+
+        Parameters
+        ----------
+        accounts : list of str
+            Account IDs (max 100) for which to stream order events.
+        on_message : callable, optional
+            Callback executed for each parsed event message.
         """
         if not accounts:
             raise ValueError("At least one account must be provided.")
@@ -293,7 +308,90 @@ class BrokerStream(BaseStreamClient):
             "Accept": "application/vnd.tradestation.streams.v2+json",
         }
 
-        self.logger.info(f"Starting orders stream for {accounts_as_str}")
+        self.logger.info(
+            f"Starting orders stream for accounts: {accounts_as_str}"
+        )
+
+        self.stream_loop(
+            url=url,
+            params={},  # no query params needed for order stream
+            headers=headers,
+            on_message=on_message or self._default_message_handler,
+        )
+
+    def _default_message_handler(
+        self,
+        msg: dict
+    ) -> None:
+        """Logs incoming order stream events in a readable format."""
+        oid = msg.get("OrderID")
+        status = msg.get("Status")
+        symbol = msg.get("Symbol")
+        qty = msg.get("Quantity")
+        side = msg.get("BuyOrSell")
+
+        # Ignora keep-alive o messaggi incompleti
+        if not any([oid, status, symbol]):
+            return
+
+        self.logger.info(
+            f"Order {oid or '-'} | {symbol or '?'} {side or '?'} "
+            f"{qty or '?'} | Status: {status or '?'}"
+        )
+
+    def stream_orders_by_id(
+        self,
+        *,
+        accounts: list[str],
+        order_ids: list[str],
+        on_message=None,
+    ) -> None:
+        """
+        Stream real-time updates for specific orders in the given accounts.
+
+        Parameters
+        ----------
+        accounts : list of str
+            One or more account IDs (max 100) for which to stream order events.
+        order_ids : list of str
+            One or more specific order IDs (max 100) to stream updates for.
+        on_message : callable, optional
+            Callback executed for each parsed event message.
+
+        Raises
+        ------
+        ValueError
+            If no accounts or order IDs are provided, or if limits are
+            exceeded.
+        """
+
+        if not accounts:
+            raise ValueError("At least one account must be provided.")
+        if not order_ids:
+            raise ValueError("At least one order ID must be provided.")
+
+        if len(accounts) > 100:
+            raise ValueError("Maximum 100 accounts allowed per request.")
+        if len(order_ids) > 100:
+            raise ValueError("Maximum 100 order IDs allowed per request.")
+
+        accounts_as_str = ",".join(acc.strip().upper() for acc in accounts)
+        ids_as_str = ",".join(oid.strip().upper() for oid in order_ids)
+
+        url = (
+            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{accounts_as_str}/orders/{ids_as_str}"
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self.token_manager.get_token()}",
+            "Accept": "application/vnd.tradestation.streams.v2+json",
+        }
+
+        self.logger.info(
+            f"Starting order-by-ID stream for accounts={accounts_as_str}, "
+            f"orders={ids_as_str}"
+        )
 
         self.stream_loop(
             url=url,
