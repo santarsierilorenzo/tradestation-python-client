@@ -314,7 +314,7 @@ class BrokerStream(BaseStreamClient):
 
         self.stream_loop(
             url=url,
-            params={},  # no query params needed for order stream
+            params={},
             headers=headers,
             on_message=on_message or self._default_message_handler,
         )
@@ -399,3 +399,68 @@ class BrokerStream(BaseStreamClient):
             headers=headers,
             on_message=on_message or self._default_message_handler,
         )
+
+    def stream_positions(
+        self,
+        *,
+        accounts: list[str],
+        changes: Optional[bool] = False,
+        on_message=None,
+    ) -> None:
+        """
+        Stream real-time position updates for the given accounts.
+
+        Parameters
+        ----------
+        accounts : list of str
+            One or more account IDs (max 25) for which to stream positions.
+        changes : bool, optional, default=False
+            If True, only streams position changes instead of all open
+            positions.
+        on_message : callable, optional
+            Callback executed for each parsed event message.
+
+        Raises
+        ------
+        ValueError
+            If no accounts are provided or if more than 25 are specified.
+
+        Notes
+        -----
+        - Valid for Cash, Margin, Futures, and DVP account types.
+        - The stream remains open until `stop()` is called.
+        """
+
+        if not accounts:
+            raise ValueError("At least one account must be provided.")
+        if len(accounts) > 25:
+            raise ValueError("Maximum 25 accounts allowed per request.")
+
+        accounts_as_str = ",".join(acc.strip().upper() for acc in accounts)
+
+        url = (
+            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{accounts_as_str}/positions"
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self.token_manager.get_token()}",
+            "Accept": "application/vnd.tradestation.streams.v2+json",
+        }
+
+        self.logger.info(
+            f"Starting positions stream for accounts={accounts_as_str} "
+            f"(changes={changes})"
+        )
+
+        params: Dict[str, str | int] = {
+            "changes": str(changes).lower(),
+        }
+
+        self.stream_loop(
+            url=url,
+            params=params,
+            headers=headers,
+            on_message=on_message or self._default_message_handler,
+        )
+
