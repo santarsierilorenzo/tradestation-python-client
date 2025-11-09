@@ -1,4 +1,5 @@
 from src.endpoints.market_data import MarketDataAPI
+from src.endpoints.brokerage import Brokerage
 
 class TradeStationClient:
     """
@@ -11,3 +12,4 @@ class TradeStationClient:
         
         # Sub-clients share the same TokenManager instance
         self.market_data = MarketDataAPI(token_manager=token_manager)
+        self.brokerage = Brokerage(token_manager=token_manager)
