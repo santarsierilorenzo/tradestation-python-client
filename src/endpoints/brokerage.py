@@ -450,3 +450,84 @@ class Brokerage(BaseAPIClient):
         )
 
         return response
+
+    def get_orders_by_id(
+        self,
+        *,
+        accounts: list[str],
+        order_ids: list[str],
+    ) -> Dict:
+        """
+        Retrieve today's and open orders filtered by specific order IDs.
+
+        This endpoint returns open orders and today's executed orders for
+        the specified accounts, limited to the provided list of order IDs.
+        The results are sorted in descending order by time placed (open)
+        or time executed (closed). Valid for all account types.
+
+        Parameters
+        ----------
+        accounts : list of str
+            One or more account IDs to query (maximum 100).
+        order_ids : list of str
+            One or more order IDs to filter (maximum 100).
+
+        Returns
+        -------
+        dict
+            JSON response containing the filtered orders. Each entry
+            typically includes:
+            - `OrderID`: Unique identifier
+            - `Symbol`: Traded instrument
+            - `Status`: Open, Filled, or Canceled
+            - `TimePlaced` / `TimeExecuted`: Timestamps
+
+        Raises
+        ------
+        ValueError
+            If `accounts` or `order_ids` are empty or exceed 100 items.
+        requests.exceptions.RequestException
+            If the HTTP request fails or the API returns an error.
+
+        Notes
+        -----
+        - Only today's and open orders are returned.
+        - Requires a valid access token.
+        """
+        if not accounts:
+            raise ValueError("At least one account must be provided.")
+
+        if not order_ids:
+            raise ValueError("At least one order ID must be provided.")
+
+        if len(accounts) > 100:
+            raise ValueError("Maximum 100 accounts allowed per request.")
+
+        if len(order_ids) > 100:
+            raise ValueError("Maximum 100 order IDs allowed per request.")
+
+        accounts_as_str = ",".join(
+            [requests.utils.quote(acc.strip()) for acc in accounts]
+        )
+
+        ids_as_str = ",".join(
+            [requests.utils.quote(oid.strip()) for oid in order_ids]
+        )
+
+        url = (
+            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{accounts_as_str}/orders/{ids_as_str}"
+        )
+
+        token = self.token_manager.get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = self.make_request(
+            url=url,
+            headers=headers,
+            params={}
+        )
+
+        return response
+    
+    
