@@ -271,3 +271,17 @@ def test_get_crypto_symbol_names_calls_correct_url(mock_make, token_manager):
     assert "cryptopairs/symbolnames" in call["url"]
     assert call["headers"]["Authorization"].startswith("Bearer ")
     assert result == {"symbols": ["BTCUSD", "ETHUSD"]}
+
+
+@patch.object(MarketDataAPI, "make_request")
+def test_get_quote_snapshots_minimal(mock_make, token_manager):
+    mock_make.return_value = {"AAPL": {"Last": 150.0}}
+    api = MarketDataAPI(token_manager=token_manager)
+
+    result = api.get_quote_snapshots(symbols=["AAPL"])
+
+    mock_make.assert_called_once()
+    call = mock_make.call_args.kwargs
+    assert "quotes/AAPL" in call["url"]
+    assert "Authorization" in call["headers"]
+    assert result == {"AAPL": {"Last": 150.0}}
