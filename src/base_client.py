@@ -156,7 +156,7 @@ class BaseStreamClient:
         self.logger.warning(
             "Stream disconnected — refreshing token and reconnecting."
         )
-        new_token = self.token_manager.refresh_token()
+        new_token = self.token_manager.get_token()
         headers["Authorization"] = f"Bearer {new_token}"
         self._run_stream(url, params, headers, on_message)
 
