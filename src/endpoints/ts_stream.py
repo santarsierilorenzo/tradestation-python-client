@@ -54,7 +54,7 @@ class MarketDataStream(BaseStreamClient):
         - Use a background thread or asyncio adaptation for non-blocking.
         """
         url = (
-            "https://api.tradestation.com/v3/marketdata/stream/"
+            f"{self.token_manager.base_api_url}/marketdata/stream/"
             f"barcharts/{symbol}"
         )
         params: Dict[str, str | int] = {
@@ -126,7 +126,7 @@ class MarketDataStream(BaseStreamClient):
         symbols_as_str = ",".join(sym.strip().upper() for sym in symbols)
 
         url = (
-            "https://api.tradestation.com/v3/marketdata/stream/"
+            f"{self.token_manager.base_api_url}/marketdata/stream/"
             f"quotes/{symbols_as_str}"
         )
 
@@ -177,7 +177,7 @@ class MarketDataStream(BaseStreamClient):
             raise ValueError("A valid symbol must be provided.")
 
         url = (
-            "https://api.tradestation.com/v3/marketdata/stream/"
+            f"{self.token_manager.base_api_url}/marketdata/stream/"
             f"marketdepth/quotes/{symbol}"
         )
 
@@ -238,7 +238,7 @@ class MarketDataStream(BaseStreamClient):
             raise ValueError("A valid symbol must be provided.")
 
         url = (
-            "https://api.tradestation.com/v3/marketdata/stream/"
+            f"{self.token_manager.base_api_url}/marketdata/stream/"
             f"marketdepth/aggregates/{symbol}"
         )
 
@@ -299,7 +299,7 @@ class BrokerStream(BaseStreamClient):
         accounts_as_str = ",".join(acc.strip().upper() for acc in accounts)
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/orders"
         )
 
@@ -330,7 +330,6 @@ class BrokerStream(BaseStreamClient):
         qty = msg.get("Quantity")
         side = msg.get("BuyOrSell")
 
-        # Ignora keep-alive o messaggi incompleti
         if not any([oid, status, symbol]):
             return
 
@@ -379,7 +378,7 @@ class BrokerStream(BaseStreamClient):
         ids_as_str = ",".join(oid.strip().upper() for oid in order_ids)
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/orders/{ids_as_str}"
         )
 
@@ -439,7 +438,7 @@ class BrokerStream(BaseStreamClient):
         accounts_as_str = ",".join(acc.strip().upper() for acc in accounts)
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/positions"
         )
 

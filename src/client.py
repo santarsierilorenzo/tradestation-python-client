@@ -8,7 +8,11 @@ class TradeStationClient:
     Aggregates sub-clients such as MarketDataAPI, OrdersAPI, etc.
     """
 
-    def __init__(self, *, token_manager):
+    def __init__(
+        self,
+        *,
+        token_manager,
+    ):
         self.token_manager = token_manager
         
         # Sub-clients share the same TokenManager instance

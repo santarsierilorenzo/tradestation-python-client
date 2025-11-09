@@ -6,7 +6,7 @@ if __name__ == "__main__":
     load_dotenv()
 
     # Create shared instance of TokenManager
-    token_manager = TokenManager()
+    token_manager = TokenManager(use_sim=True)
 
     # Facade Pattern, TradeStationClient is an entry point.
     ts_client = TradeStationClient(

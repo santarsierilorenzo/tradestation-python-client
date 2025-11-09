@@ -92,7 +92,8 @@ class MarketDataAPI(BaseAPIClient):
         if first_date > last_date:
             raise Exception("first_data can't be greater then last_date")
 
-        url = f"https://api.tradestation.com/v3/marketdata/barcharts/{symbol}"
+        url = f"{self.token_manager.base_api_url}/marketdata/barcharts/{symbol}"
+        
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -240,7 +241,7 @@ class MarketDataAPI(BaseAPIClient):
                 "Requests limited to 57,600 bars per call"
             )
 
-        url = f"https://api.tradestation.com/v3/marketdata/barcharts/{symbol}"
+        url = f"{self.token_manager.base_api_url}/marketdata/barcharts/{symbol}"
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -304,7 +305,7 @@ class MarketDataAPI(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/marketdata/symbols/"
+            f"{self.token_manager.base_api_url}/marketdata/symbols/"
             f"{symbols_as_str}"
         )
         token = self.token_manager.get_token()
@@ -323,7 +324,7 @@ class MarketDataAPI(BaseAPIClient):
         - Endpoint: /v3/marketdata/symbollists/cryptopairs/symbols
         """
         url = (
-            "https://api.tradestation.com/v3/marketdata/symbollists/"
+            f"{self.token_manager.base_api_url}/marketdata/symbollists/"
             "cryptopairs/symbolnames"
         )
         token = self.token_manager.get_token()
@@ -370,7 +371,7 @@ class MarketDataAPI(BaseAPIClient):
         )
 
         url = (
-            f"https://api.tradestation.com/v3/marketdata/quotes/"
+            f"{self.token_manager.base_api_url}/marketdata/quotes/"
             f"{symbols_as_str}"
         )
         token = self.token_manager.get_token()

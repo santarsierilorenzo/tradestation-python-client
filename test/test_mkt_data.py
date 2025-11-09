@@ -12,7 +12,9 @@ def token_manager():
     tm = MagicMock()
     tm.get_token.return_value = "valid_token"
     tm.refresh_token.return_value = "new_token"
+    tm.base_api_url = "https://api.tradestation.com/v3"
     return tm
+
 
 
 @patch("src.endpoints.mkt_data.requests.get")

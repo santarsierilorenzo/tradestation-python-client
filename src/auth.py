@@ -12,6 +12,7 @@ class TokenManager:
 
     Responsibilities:
     - Load token data from a local JSON file.
+    - Set auth and base url for either sim and live envirorments.
     - Automatically refresh the token when it expires.
     - Ensure thread-safe access to the token using a shared mutex.
     """
@@ -22,21 +23,41 @@ class TokenManager:
 
     def __init__(
         self,
-        token_file: Optional[str] = ".token.json"
+        token_file: Optional[str] = ".token.json",
+        use_sim=True
     ) -> None:
         """
-        Initializes the TokenManager.
+        Initialize a TokenManager instance.
 
-        Args:
-            token_file (str, optional): Path to the JSON file storing token
-                                        data. Defaults to ".token.json".
+        Parameters
+        ----------
+        token_file : str, optional
+            Path to the JSON file used to persist OAuth token data.
+            Defaults to ".token.json".
+        use_sim : bool, optional
+            When True, connects to the TradeStation SIM (paper trading)
+            environment. When False, uses the LIVE (production) environment.
+            Defaults to False.
 
-        Loads token data from the specified file. If the file does not exist or
-        lacks valid fields, an empty dictionary is used instead. The
-        `token_data` attribute will store the active token information.
+        Notes
+        -----
+        On initialization, the manager attempts to load token data from
+        the specified file. If the file does not exist or lacks required
+        fields, an empty dictionary is used instead. The `token_data`
+        attribute will always hold the current token state.
         """
         self.token_file = token_file
         self.token_data = self._load()
+        self.base_auth_url = (
+            "https://signin.tradestation.com/sim/oauth/token"
+            if use_sim else
+            "https://signin.tradestation.com/oauth/token"
+        )
+        self.base_api_url = (
+            "https://sim-api.tradestation.com/v3"
+            if use_sim else
+            "https://api.tradestation.com/v3"
+        )
 
     def _load(self) -> Dict:
         """
@@ -140,7 +161,9 @@ class TokenManager:
             requests.exceptions.RequestException: If the HTTP request fails or
             the server responds with an error status code.
         """
-        url = os.getenv("TS_TOKEN_URL")
+
+        url = self.base_auth_url
+
         if not url:
             raise ValueError("Missing environment variable: TS_TOKEN_URL")
 
@@ -152,9 +175,7 @@ class TokenManager:
         }
 
         headers = {
-            "content-type": os.getenv(
-                "TS_CONTENT_TYPE", "application/x-www-form-urlencoded"
-            )
+            "content-type": "application/x-www-form-urlencoded"
         }
 
         response = requests.post(url, data=payload, headers=headers)

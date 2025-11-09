@@ -59,7 +59,7 @@ class Brokerage(BaseAPIClient):
         - Requires a valid access token.
         - Data returned may vary based on account type and permissions.
         """
-        url = "https://api.tradestation.com/v3/brokerage/accounts"
+        url = f"{self.token_manager.base_api_url}/brokerage/accounts"
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -117,7 +117,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/balances"
         )
 
@@ -182,7 +182,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/bodbalances"
         )
 
@@ -264,7 +264,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/historicalorders"
         )
 
@@ -357,7 +357,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/historicalorders/{ids_as_str}"
         )
 
@@ -430,7 +430,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/orders"
         )
 
@@ -515,7 +515,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/orders/{ids_as_str}"
         )
 
@@ -584,7 +584,7 @@ class Brokerage(BaseAPIClient):
         )
 
         url = (
-            "https://api.tradestation.com/v3/brokerage/accounts/"
+            f"{self.token_manager.base_api_url}/brokerage/accounts/"
             f"{accounts_as_str}/positions"
         )
 
@@ -603,4 +603,3 @@ class Brokerage(BaseAPIClient):
         )
 
         return response
-
