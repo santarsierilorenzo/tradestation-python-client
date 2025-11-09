@@ -24,10 +24,18 @@ class MarketDataAPI:
 
     ts_max_bars_thresh = 57_600
 
-    def __init__(self, *, token_manager):
+    def __init__(
+        self,
+        *,
+        token_manager
+    ) -> None:
         self.token_manager = token_manager
 
-    def make_request(self, url: str, headers: dict, params: dict) -> Dict:
+    def make_request(
+        self, url: str,
+        headers: dict,
+        params: dict
+    ) -> Dict:
         """
         Perform a single authenticated request to the given endpoint.
 
@@ -108,7 +116,7 @@ class MarketDataAPI:
             Combined JSON response containing all retrieved bars,
             sorted in chronological order.
         """
-
+        
         def organize_params(start: str, end: str) -> Dict[str, Any]:
             """
             Prepare the query parameters for a bar request.
@@ -126,6 +134,9 @@ class MarketDataAPI:
         if not last_date:
             # If last_date is None, default to today's date.
             last_date = date.today().strftime("%Y-%m-%d")
+
+        if first_date > last_date:
+            raise Exception("first_data can't be greater then last_date")
 
         url = f"https://api.tradestation.com/v3/marketdata/barcharts/{symbol}"
         token = self.token_manager.get_token()
@@ -195,7 +206,6 @@ class MarketDataAPI:
                     start, end = futs[fut]
                     try:
                         res = fut.result()
-                        retrieved = len(res.get("Bars", []))
                         # Update progress per completed chunk.
                         progress.advance(task, 1)
 
@@ -219,4 +229,88 @@ class MarketDataAPI:
             merged["Bars"].sort(key=lambda b: b.get("Time", ""))
 
         return merged
+
+    def get_bars(
+        self,
+        *,
+        symbol: str,
+        interval: int = 1,
+        unit: str = "Daily",
+        barsback: Optional[int] = None,
+        last_date: Optional[str] = None,
+        sessiontemplate: Optional[str] = None,
+    ) -> Dict:
+        """
+        Retrieve a fixed number of historical bars for a given symbol.
+
+        This method wraps the TradeStation `/barcharts` endpoint for
+        fetching recent or compact historical data using the `barsback`
+        parameter. It supports both intraday and higher timeframes
+        (daily, weekly, monthly).
+
+        Parameters
+        ----------
+        symbol : str
+            The market symbol (e.g., "AAPL" or "MSFT").
+        interval : int, default=1
+            Interval size for each bar (minutes for intraday data).
+        unit : str, default="Daily"
+            Time unit of the bars: "Minute", "Daily", "Weekly", "Monthly".
+        barsback : int, optional
+            Number of bars to retrieve. Must not exceed 57,600.
+        last_date : str, optional
+            End timestamp (ISO 8601 format). Defaults to the latest bar.
+        sessiontemplate : str, optional
+            U.S. session template (USEQPre, USEQPost, etc.).
+            Ignored for non-U.S. instruments.
+
+        Returns
+        -------
+        dict
+            JSON response containing OHLCV bar data and metadata.
+
+        Raises
+        ------
+        ValueError
+            If `barsback` exceeds TradeStation API limits.
+        requests.exceptions.RequestException
+            If the HTTP request fails or the server returns an error.
+
+        Notes
+        -----
+        - Designed for small, recent lookback windows (e.g., last N bars).
+        - Use `get_bars_between()` for large or date-range queries.
+        """
+        if barsback and barsback > 57_600:
+            raise ValueError(
+                "Requests limited to 57,600 bars per call"
+            )
+
+        url = f"https://api.tradestation.com/v3/marketdata/barcharts/{symbol}"
+        token = self.token_manager.get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        params = {
+            "interval": interval,
+            "unit": unit,
+            "barsback": barsback,
+            "lastdate": last_date,
+            "sessiontemplate": sessiontemplate,
+        }
+        params = {k: v for k, v in params.items() if v is not None}
+
+        with Progress() as progress:
+            task = progress.add_task(
+                f"[cyan]Fetching {symbol}...", total=1
+            )
+
+            response = self.make_request(
+                url=url,
+                headers=headers,
+                params=params
+            )
+
+            progress.advance(task, 1)
+
+            return response
 
