@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.base_client import BaseAPIClient
 from typing import Optional, Dict, Any
 from rich.progress import Progress
 from datetime import date
@@ -6,7 +7,7 @@ import numpy as np
 import requests
 
 
-class MarketDataAPI:
+class MarketDataAPI(BaseAPIClient):
     """
     Provides access to TradeStation Market Data endpoints.
 
@@ -30,53 +31,6 @@ class MarketDataAPI:
         token_manager
     ) -> None:
         self.token_manager = token_manager
-
-    def make_request(
-        self, url: str,
-        headers: dict,
-        params: dict
-    ) -> Dict:
-        """
-        Perform a single authenticated request to the given endpoint.
-
-        Automatically retries once with a refreshed token if a
-        401 Unauthorized or token-expired error occurs.
-
-        Parameters
-        ----------
-        url : str
-            Target TradeStation endpoint URL.
-        headers : dict
-            HTTP headers, must include Authorization.
-        params : dict
-            Query parameters for the GET request.
-
-        Returns
-        -------
-        dict
-            Parsed JSON response.
-        """
-
-        def get_request(params: dict) -> requests.Response:
-            """Executes a single GET request."""
-            resp = requests.get(url, headers=headers, params=params)
-            return resp
-
-        try:
-            resp = get_request(params)
-            resp.raise_for_status()
-
-        except requests.exceptions.HTTPError as e:
-            # Token expired or invalid. Refresh immediately and retry.
-            if resp.status_code == 401:
-                token = self.token_manager.refresh_token()
-                headers["Authorization"] = f"Bearer {token}"
-                resp = get_request(params)
-                resp.raise_for_status()
-            else:
-                raise e
-
-        return resp.json()
 
     def get_bars_between(
         self,
