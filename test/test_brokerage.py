@@ -405,3 +405,66 @@ def test_get_orders_too_many_accounts(token_manager):
 
     with pytest.raises(ValueError, match="Maximum 100 accounts"):
         api.get_orders(accounts=too_many)
+
+
+@patch.object(Brokerage, "make_request")
+def test_get_orders_by_id_success(mock_make, token_manager):
+    """
+    Ensure get_orders_by_id() builds URL and calls make_request correctly.
+    """
+    mock_make.return_value = {"Orders": [{"OrderID": "O123"}]}
+
+    api = Brokerage(token_manager=token_manager)
+    result = api.get_orders_by_id(
+        accounts=["ACC1"],
+        order_ids=["O123"],
+    )
+
+    assert isinstance(result, dict)
+    assert "Orders" in result
+    mock_make.assert_called_once()
+
+    call = mock_make.call_args.kwargs
+    assert "ACC1" in call["url"]
+    assert "O123" in call["url"]
+    assert call["url"].endswith("/orders/O123")
+
+
+def test_get_orders_by_id_empty_accounts(token_manager):
+    """
+    Ensure ValueError raised when no accounts provided.
+    """
+    api = Brokerage(token_manager=token_manager)
+    with pytest.raises(ValueError, match="At least one account"):
+        api.get_orders_by_id(accounts=[], order_ids=["O1"])
+
+
+def test_get_orders_by_id_empty_order_ids(token_manager):
+    """
+    Ensure ValueError raised when no order IDs provided.
+    """
+    api = Brokerage(token_manager=token_manager)
+    with pytest.raises(ValueError, match="At least one order ID"):
+        api.get_orders_by_id(accounts=["ACC1"], order_ids=[])
+
+
+def test_get_orders_by_id_too_many_accounts(token_manager):
+    """
+    Ensure ValueError raised when >100 accounts are provided.
+    """
+    api = Brokerage(token_manager=token_manager)
+    too_many = [f"A{i}" for i in range(101)]
+
+    with pytest.raises(ValueError, match="Maximum 100 accounts"):
+        api.get_orders_by_id(accounts=too_many, order_ids=["O1"])
+
+
+def test_get_orders_by_id_too_many_order_ids(token_manager):
+    """
+    Ensure ValueError raised when >100 order IDs are provided.
+    """
+    api = Brokerage(token_manager=token_manager)
+    too_many = [f"O{i}" for i in range(101)]
+
+    with pytest.raises(ValueError, match="Maximum 100 order IDs"):
+        api.get_orders_by_id(accounts=["ACC1"], order_ids=too_many)
