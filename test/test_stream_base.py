@@ -160,3 +160,49 @@ def test_stream_market_depth_quotes_no_symbol():
 
     with pytest.raises(ValueError, match="symbol"):
         api.stream_market_depth_quotes(symbol="")
+
+
+@patch.object(MarketDataStream, "stream_loop")
+def test_stream_market_depth_quotes_valid(mock_stream_loop):
+    """Ensure the market depth stream builds correct URL and headers."""
+    token_manager = MagicMock()
+    token_manager.get_token.return_value = "fake_token"
+
+    stream = MarketDataStream(token_manager=token_manager)
+
+    # Call the method under test
+    stream.stream_market_depth_quotes(
+        symbol="AAPL",
+        max_levels=10,
+        on_message=lambda msg: msg,
+    )
+
+    # Check that stream_loop was called once
+    mock_stream_loop.assert_called_once()
+    args, kwargs = mock_stream_loop.call_args
+
+    # Validate URL and headers
+    assert "marketdepth/quotes/AAPL" in kwargs["url"]
+    assert kwargs["headers"]["Authorization"] == "Bearer fake_token"
+    assert kwargs["headers"]["Accept"].startswith(
+        "application/vnd.tradestation"
+    )
+
+    # Validate params
+    params = kwargs["params"]
+    assert params["maxlevels"] == 10
+    assert callable(kwargs["on_message"])
+
+
+def test_stream_market_depth_quotes_invalid_symbol():
+    """Ensure ValueError is raised when symbol is missing."""
+    token_manager = MagicMock()
+    stream = MarketDataStream(token_manager=token_manager)
+
+    # Symbol missing → must raise
+    try:
+        stream.stream_market_depth_quotes(symbol=None)
+    except ValueError as e:
+        assert "valid symbol" in str(e)
+    else:
+        raise AssertionError("Expected ValueError for missing symbol")
