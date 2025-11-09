@@ -257,3 +257,17 @@ def test_get_symbol_details_too_many_symbols(token_manager):
     api = MarketDataAPI(token_manager=token_manager)
     with pytest.raises(ValueError, match="Maximum 100 symbols"):
         api.get_symbol_details(symbols=["SYM"] * 101)
+
+
+@patch.object(MarketDataAPI, "make_request")
+def test_get_crypto_symbol_names_calls_correct_url(mock_make, token_manager):
+    mock_make.return_value = {"symbols": ["BTCUSD", "ETHUSD"]}
+    api = MarketDataAPI(token_manager=token_manager)
+
+    result = api.get_crypto_symbol_names()
+
+    mock_make.assert_called_once()
+    call = mock_make.call_args.kwargs
+    assert "cryptopairs/symbolnames" in call["url"]
+    assert call["headers"]["Authorization"].startswith("Bearer ")
+    assert result == {"symbols": ["BTCUSD", "ETHUSD"]}
