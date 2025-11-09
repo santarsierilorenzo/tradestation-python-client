@@ -223,3 +223,37 @@ def test_get_bars_between_invalid_unit(token_manager):
                              first_date="2024-01-01",
                              unit="Hourly")
 
+
+def test_get_symbol_details_valid(token_manager):
+    """
+    Ensure get_symbol_details() calls make_request() with the right URL
+    and headers when valid symbols are provided.
+    """
+    with patch.object(MarketDataAPI, "make_request") as mock_req:
+        mock_req.return_value = {"AAPL": {"Description": "Apple Inc."}}
+        api = MarketDataAPI(token_manager=token_manager)
+
+        res = api.get_symbol_details(symbols=["AAPL", "MSFT"])
+
+        assert isinstance(res, dict)
+        mock_req.assert_called_once()
+        called_url = mock_req.call_args.kwargs["url"]
+        assert "AAPL" in called_url and "MSFT" in called_url
+
+
+def test_get_symbol_details_empty_list(token_manager):
+    """
+    Ensure get_symbol_details() raises if no symbols are given.
+    """
+    api = MarketDataAPI(token_manager=token_manager)
+    with pytest.raises(ValueError, match="At least one symbol"):
+        api.get_symbol_details(symbols=[])
+
+
+def test_get_symbol_details_too_many_symbols(token_manager):
+    """
+    Ensure get_symbol_details() raises if more than 100 symbols are passed.
+    """
+    api = MarketDataAPI(token_manager=token_manager)
+    with pytest.raises(ValueError, match="Maximum 100 symbols"):
+        api.get_symbol_details(symbols=["SYM"] * 101)
