@@ -10,4 +10,3 @@ class TradeStationClient:
         self.market_data = MarketDataAPI(
             token_manager=token_manager
         )
-
