@@ -1,5 +1,5 @@
 [project]
-name = "tradestation-api-python"
+name = "tradestation-python-client"
 version = "0.1.0"
 description = "Python package for interacting with TradeStation APIs."
 readme = "README.md"
