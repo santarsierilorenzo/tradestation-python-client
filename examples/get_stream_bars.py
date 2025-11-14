@@ -8,9 +8,6 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-
     # Creare un istanza condivisa di TokenManager.
     token_manager = TokenManager(use_sim=True)
 

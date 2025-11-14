@@ -2,9 +2,6 @@ from src.client import TradeStationClient
 from src.auth import TokenManager
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-
     # Create shared instance of TokenManager
     token_manager = TokenManager(use_sim=True)
 
