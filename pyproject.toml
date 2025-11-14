@@ -1,6 +1,6 @@
 [project]
 name = "tradestation-python-client"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python package for interacting with TradeStation APIs."
 readme = "README.md"
 license = { text = "MIT" }
