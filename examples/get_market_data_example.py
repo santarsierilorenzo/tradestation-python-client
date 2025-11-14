@@ -1,5 +1,5 @@
-from src.client import TradeStationClient
-from src.auth import TokenManager
+from tradestation_api_python.client import TradeStationClient
+from tradestation_api_python.auth import TokenManager
 
 if __name__ == "__main__":
     # Create shared instance of TokenManager
