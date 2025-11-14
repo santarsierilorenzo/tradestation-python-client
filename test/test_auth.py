@@ -1,5 +1,5 @@
+from tradestation_api_python.auth import TokenManager
 from unittest.mock import patch, MagicMock
-from src.auth import TokenManager
 import threading
 import pytest
 import json

@@ -1,5 +1,8 @@
-from src.base_client import BaseAPIClient, BaseStreamClient
-from src.endpoints.ts_stream import MarketDataStream, BrokerStream
+from tradestation_api_python.base_client import BaseAPIClient, BaseStreamClient
+from tradestation_api_python.endpoints.ts_stream import (
+    MarketDataStream,
+    BrokerStream
+)
 from unittest.mock import MagicMock, patch
 import pytest
 

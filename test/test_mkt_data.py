@@ -1,4 +1,4 @@
-from src.endpoints.mkt_data import MarketDataAPI
+from tradestation_api_python.endpoints.mkt_data import MarketDataAPI
 from unittest.mock import MagicMock, patch
 import requests
 import pytest
@@ -17,7 +17,7 @@ def token_manager():
 
 
 
-@patch("src.endpoints.mkt_data.requests.get")
+@patch("tradestation_api_python.endpoints.mkt_data.requests.get")
 def test_make_request_success(mock_get, token_manager):
     """
     Verify that make_request() handles a 200 OK and returns JSON data.
@@ -38,7 +38,7 @@ def test_make_request_success(mock_get, token_manager):
     mock_get.assert_called_once()
 
 
-@patch("src.endpoints.mkt_data.requests.get")
+@patch("tradestation_api_python.endpoints.mkt_data.requests.get")
 def test_make_request_refresh_token(mock_get, token_manager):
     """
     Ensure make_request() refreshes token on 401 and retries once.
@@ -68,7 +68,7 @@ def test_make_request_refresh_token(mock_get, token_manager):
     token_manager.get_token.assert_called_once()
 
 
-@patch("src.endpoints.mkt_data.requests.get")
+@patch("tradestation_api_python.endpoints.mkt_data.requests.get")
 def test_make_request_raises_non_401(mock_get, token_manager):
     """
     Check that make_request() raises for HTTP errors other than 401.
@@ -113,7 +113,7 @@ def token_manager():
     return tm
 
 
-@patch("src.endpoints.mkt_data.requests.get")
+@patch("tradestation_api_python.endpoints.mkt_data.requests.get")
 def test_make_request_success(mock_get, token_manager):
     """
     Verify make_request() handles a 200 OK and returns JSON data.
@@ -131,7 +131,7 @@ def test_make_request_success(mock_get, token_manager):
     mock_get.assert_called_once()
 
 
-@patch("src.endpoints.mkt_data.requests.get")
+@patch("tradestation_api_python.endpoints.mkt_data.requests.get")
 def test_make_request_refresh_token(mock_get, token_manager):
     """
     Ensure make_request() refreshes token on 401 and retries once.
@@ -156,7 +156,7 @@ def test_make_request_refresh_token(mock_get, token_manager):
     token_manager.get_token.assert_called_once()
 
 
-@patch("src.endpoints.mkt_data.requests.get")
+@patch("tradestation_api_python.endpoints.mkt_data.requests.get")
 def test_make_request_raises_non_401(mock_get, token_manager):
     """
     Check make_request() raises errors other than 401.

@@ -1,0 +1,22 @@
+[project]
+name = "tradestation-api-python"
+version = "0.1.0"
+description = "Python package for interacting with TradeStation APIs."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Lorenzo Santarsieri" }]
+requires-python = ">=3.10"
+dependencies = [
+    "psycopg2>=2.9",
+    "pandas==2.3.3",
+    "python-dotenv==1.2.1",
+    "requests==2.32.5",
+    "rich==14.2.0"
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
