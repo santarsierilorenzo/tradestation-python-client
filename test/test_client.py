@@ -25,7 +25,7 @@ def test_client_initializes_market_data(mock_market_data):
 @patch("src.base_client.requests.get")
 def test_make_request_refresh_token(mock_get):
     tm = MagicMock()
-    tm.refresh_token.return_value = "new_token"
+    tm.get_token.return_value = "new_token"
 
     first = MagicMock(status_code=401)
     second = MagicMock(status_code=200)
@@ -36,5 +36,5 @@ def test_make_request_refresh_token(mock_get):
     res = api.make_request("url", {"Authorization": "Bearer old"}, {})
 
     assert res == {"ok": True}
-    tm.refresh_token.assert_called_once()
+    tm.get_token.assert_called_once()
     mock_get.assert_called()

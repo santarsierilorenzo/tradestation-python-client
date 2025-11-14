@@ -65,7 +65,7 @@ def test_make_request_refresh_token(mock_get, token_manager):
 
     assert isinstance(res, dict)
     assert res["Bars"][0]["Time"] == "2024-01-01"
-    token_manager.refresh_token.assert_called_once()
+    token_manager.get_token.assert_called_once()
 
 
 @patch("src.endpoints.mkt_data.requests.get")
@@ -109,7 +109,7 @@ def token_manager():
     """
     tm = MagicMock()
     tm.get_token.return_value = "valid_token"
-    tm.refresh_token.return_value = "new_token"
+    tm.get_token.return_value = "new_token"
     return tm
 
 
@@ -153,7 +153,7 @@ def test_make_request_refresh_token(mock_get, token_manager):
                            {"interval": 1})
 
     assert res["Bars"][0]["Time"] == "2024-01-01"
-    token_manager.refresh_token.assert_called_once()
+    token_manager.get_token.assert_called_once()
 
 
 @patch("src.endpoints.mkt_data.requests.get")

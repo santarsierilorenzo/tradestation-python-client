@@ -11,7 +11,7 @@ def token_manager():
     """
     tm = MagicMock()
     tm.get_token.return_value = "valid_token"
-    tm.refresh_token.return_value = "new_token"
+    tm.get_token.return_value = "new_token"
     tm.base_api_url = "https://api.tradestation.com/v3"
     return tm
 
@@ -24,12 +24,12 @@ def test_make_request_refresh_token(mock_get):
     mock_get.side_effect = [mock_resp_401, mock_resp_ok]
 
     token_manager = MagicMock()
-    token_manager.refresh_token.return_value = "newtok"
+    token_manager.get_token.return_value = "newtok"
 
     api = BaseAPIClient(token_manager)
     res = api.make_request("url", {"Authorization": "Bearer X"}, {})
     assert res == {"ok": True}
-    token_manager.refresh_token.assert_called_once()
+    token_manager.get_token.assert_called_once()
     assert mock_get.call_count == 2
 
 
@@ -52,12 +52,12 @@ def test_refresh_and_reconnect_triggers_run_stream():
     Ensure _refresh_and_reconnect refreshes token and recalls _run_stream.
     """
     tm = MagicMock()
-    tm.refresh_token.return_value = "fresh"
+    tm.get_token.return_value = "fresh"
     client = BaseStreamClient(token_manager=tm)
     client._run_stream = MagicMock()
 
     client._refresh_and_reconnect("url", {}, {}, MagicMock())
-    tm.refresh_token.assert_called_once()
+    tm.get_token.assert_called_once()
     client._run_stream.assert_called_once()
 
 
