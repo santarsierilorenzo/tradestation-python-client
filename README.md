@@ -17,7 +17,7 @@
 
 &nbsp;
 
-`tradestation-python-client` is an **unofficial Python client** for interacting with the TradeStation REST and Streaming APIs.
+`tradestation-python-client` is an **unofficial Python client** for interacting with the TradeStation APIs.
 
 ## 📦 Installation (PyPI Package)
 
