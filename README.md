@@ -19,7 +19,7 @@
 
 `tradestation-python-client` is an **unofficial Python client** for interacting with the TradeStation APIs.
 
-## 📦 Installation (PyPI Package)
+### 📦 Installation (PyPI Package)
 
 Install the package from **PyPI**:
 
@@ -36,7 +36,7 @@ from tradestation_python_client import TradeStationClient, TokenManager
 This repository also includes a full development environment, but the primary distribution is a **PyPI-installable client**.
 
 
-## ⚠️ Disclaimer
+### ⚠️ Disclaimer
 
 `tradestation-python-client` is an **unofficial Python client** for interacting with the TradeStation REST and Streaming APIs.  
 It is not affiliated with or endorsed by TradeStation Technologies, Inc.
@@ -49,7 +49,7 @@ TokenManager(use_sim=False)
 ```
 
 
-## 🧩 Overview
+### 🧩 Overview
 This client provides:
 
 - OAuth2 token handling with automatic refresh and thread safety  
@@ -59,7 +59,7 @@ This client provides:
 - Clean, modern Python interface  
 
 
-## 🔧 Core Modules
+### 🔧 Core Modules
 
 | Module | Description |
 |--------|-------------|
@@ -70,7 +70,7 @@ This client provides:
 | `endpoints/mkt_data.py` | Historical + intraday market data |
 | `endpoints/ts_stream.py` | Real-time streaming (bars, quotes, orders, etc.) |
 
-## 🧪 Testing
+### 🧪 Testing
 
 Run the test suite:
 
@@ -86,11 +86,11 @@ Includes tests for:
 - HTTP error handling  
 
 
-## 🧰 Development Environment (DevContainer + Docker)
+### 🧰 Development Environment (DevContainer + Docker)
 
 For contributors or advanced users, the repository provides a fully reproducible development environment.
 
-### Prerequisites
+#### Prerequisites
 
 - Docker Desktop  
 - Visual Studio Code  
@@ -98,20 +98,20 @@ For contributors or advanced users, the repository provides a fully reproducible
 
 ### Setup
 
-#### 1️⃣ Clone the repository
+##### 1️⃣ Clone the repository
 
 ```bash
 git clone https://github.com/santarsierilorenzo/tradestation-python-client
 cd tradestation-python-client
 ```
 
-#### 2️⃣ Open inside DevContainer
+##### 2️⃣ Open inside DevContainer
 
 ```
 Ctrl + Shift + P → Dev Containers: Rebuild Without Cache and Reopen
 ```
 
-#### 3️⃣ Configure environment variables
+##### 3️⃣ Configure environment variables
 
 Create a `.env` file:
 
@@ -121,7 +121,7 @@ TS_CLIENT_SECRET=your_client_secret
 TS_REFRESH_TOKEN=your_refresh_token
 ```
 
-#### 4️⃣ Run an example
+##### 4️⃣ Run an example
 
 ```bash
 python -m examples.get_market_data_example
@@ -129,7 +129,7 @@ python -m examples.get_market_data_example
 
 ## ⚙️ Usage Examples
 
-### Basic Initialization
+#### Basic Initialization
 
 ```python
 from tradestation_python_client import TradeStationClient, TokenManager
@@ -138,7 +138,7 @@ token_manager = TokenManager(use_sim=True)
 ts = TradeStationClient(token_manager=token_manager)
 ```
 
-### Parallel Historical Data Fetching
+#### Parallel Historical Data Fetching
 
 ```python
 data = ts.market_data.get_bars_between(
@@ -151,7 +151,7 @@ data = ts.market_data.get_bars_between(
 )
 ```
 
-### Real-Time Streaming
+#### Real-Time Streaming
 
 ```python
 ts.market_data_stream.stream_bars(
@@ -163,5 +163,5 @@ ts.market_data_stream.stream_bars(
 ```
 
 
-## 🪪 License
+### 🪪 License
 MIT © 2025 — Developed with ❤️ by Lorenzo Santarsieri
