@@ -1,14 +1,6 @@
 # tradestation-python-client
 
 <p align="center">
-  <a href="https://github.com/santarsierilorenzo/tradestation-python-client/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/santarsierilorenzo/tradestation-python-client/ci.yml?style=flat-square" alt="CI/CD Pipeline"></a>
-  <a href="https://coveralls.io/github/santarsierilorenzo/tradestation-python-client?branch=main"><img src="https://coveralls.io/repos/github/santarsierilorenzo/tradestation-python-client/badge.svg?branch=main" alt="Code Coverage"/></a>
-  <a href="https://github.com/santarsierilorenzo/tradestation-python-client/releases"><img src="https://img.shields.io/github/v/release/santarsierilorenzo/tradestation-python-client?style=flat-square" alt="Latest Release"></a>
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg?style=flat-square" alt="Platform">
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Requests-007EC6?style=for-the-badge&logo=python&logoColor=white" alt="Requests">
   <img src="https://img.shields.io/badge/PyTest-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white" alt="PyTest">
