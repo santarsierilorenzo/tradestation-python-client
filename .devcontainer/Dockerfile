@@ -1,11 +1,16 @@
 FROM python:3.10
 
+# Create non-root user with bash
 RUN useradd -ms /bin/bash myuser
 
-COPY requirements.txt /tmp/
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# Use a neutral workdir (VS Code will override this later)
+WORKDIR /tmp
 
-RUN mkdir /workspace && chown myuser:myuser /workspace
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt || true
+
+COPY . .
 
 USER myuser
+
 CMD ["bash"]
