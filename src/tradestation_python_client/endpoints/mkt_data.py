@@ -1,36 +1,166 @@
+from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, List, Tuple
 from ..base_client import BaseAPIClient
-from typing import Optional, Dict, Any
+from dateutil.parser import isoparse
 from rich.progress import Progress
 from datetime import date
 import numpy as np
 import requests
+import time
 
 
 class MarketDataAPI(BaseAPIClient):
     """
-    Provides access to TradeStation Market Data endpoints.
+    Provides a robust interface to TradeStation Market Data endpoints.
+    Includes safe chunking for large historical queries, retry logic for
+    unstable API responses, date normalization, and automatic token
+    refresh when required.
 
-    Handles historical and intraday bar retrieval, automatic
-    chunking for large data ranges, and automatic token refresh
-    through the injected `TokenManager`.
-
-    Attributes
-    ----------
-    ts_max_bars_thresh : int
-        Maximum number of bars per request supported by TradeStation.
-    token_manager : TokenManager
-        Object responsible for providing and refreshing OAuth tokens.
+    Notes
+    -----
+    - TradeStation enforces a maximum of 57,600 bars per request.
+    - Some valid API responses may contain no bars without raising
+      errors (e.g., holidays, illiquid symbols, malformed ranges).
+    - This client aggressively normalizes dates and retries empty or
+      transient responses.
     """
 
     ts_max_bars_thresh = 57_600
 
-    def __init__(
+    def __init__(self, *, token_manager) -> None:
+        self.token_manager = token_manager
+
+    def _normalize_date(self, ds: str) -> str:
+        """
+        Normalize an input date to YYYY-MM-DD (day precision).
+
+        Parameters
+        ----------
+        ds : str
+            Date input (various string formats supported).
+
+        Returns
+        -------
+        str
+            Normalized date in YYYY-MM-DD format.
+
+        Raises
+        ------
+        ValueError
+            If the input format cannot be parsed.
+        """
+        try:
+            return str(np.datetime64(ds, "D"))
+        except Exception:
+            raise ValueError(f"Invalid date format: {ds}")
+
+    def _chunk_dates(
+        self, dates: np.ndarray, max_days: int
+    ) -> List[Tuple[str, str]]:
+        """
+        Split a continuous date array into (start, end) chunks.
+
+        Parameters
+        ----------
+        dates : np.ndarray
+            Array of daily timestamps.
+        max_days : int
+            Maximum number of days allowed in a single request.
+
+        Returns
+        -------
+        list of tuple(str, str)
+            List of (start_date, end_date) pairs.
+        """
+        chunks: List[Tuple[str, str]] = []
+        n = len(dates)
+
+        for i in range(0, n, max_days):
+            start = str(dates[i])
+            end = str(dates[min(i + max_days - 1, n - 1)])
+            chunks.append((start, end))
+
+        return chunks
+
+    def _request_with_retry(
         self,
         *,
-        token_manager
-    ) -> None:
-        self.token_manager = token_manager
+        url: str,
+        headers: Dict[str, str],
+        params: Dict[str, Any],
+        retries: int = 3,
+        backoff: float = 0.5,
+    ) -> Dict[str, Any]:
+        """
+        Execute a request with retry logic and automatic token refresh.
+        This handles empty responses, 5xx errors, and expired tokens.
+
+        Parameters
+        ----------
+        url : str
+            Target API endpoint.
+        headers : dict
+            HTTP headers including authorization.
+        params : dict
+            Query parameters.
+        retries : int
+            Maximum retry attempts.
+        backoff : float
+            Backoff multiplier for retry sleeping.
+
+        Returns
+        -------
+        dict
+            Parsed JSON response.
+
+        Raises
+        ------
+        requests.exceptions.RequestException
+            On persistent HTTP or network failures.
+        RuntimeError
+            If retry logic ends in an unexpected state.
+        """
+        for attempt in range(retries):
+            try:
+                res = self.make_request(
+                    url=url,
+                    headers=headers,
+                    params=params
+                )
+
+                # TradeStation may return empty responses with 200 OK.
+                if not res or ("Bars" in res and not res["Bars"]):
+                    if attempt < retries - 1:
+                        time.sleep(backoff * (attempt + 1))
+                        continue
+
+                return res
+
+            except requests.exceptions.HTTPError as exc:
+                status = exc.response.status_code
+
+                # Expired token
+                if status == 401 and attempt < retries - 1:
+                    new_token = self.token_manager.refresh_token()
+                    headers["Authorization"] = f"Bearer {new_token}"
+                    continue
+
+                # Retry on server errors
+                if status >= 500 and attempt < retries - 1:
+                    time.sleep(backoff * (attempt + 1))
+                    continue
+
+                raise
+
+            except Exception:
+                if attempt < retries - 1:
+                    time.sleep(backoff * (attempt + 1))
+                    continue
+                raise
+
+        raise RuntimeError("Retry mechanism reached an invalid state.")
 
     def get_bars_between(
         self,
@@ -44,144 +174,146 @@ class MarketDataAPI(BaseAPIClient):
         max_workers: int = 15,
     ) -> Dict[str, Any]:
         """
-        Retrieve market data bars between two dates, automatically
-        splitting large requests into smaller chunks for parallel execution.
+        Retrieve bars between two dates, safely splitting the date
+        range into multiple API calls when required.
+
+        The function automatically:
+        - normalizes input dates,
+        - estimates bar count to decide if chunking is required,
+        - splits requests into valid time windows,
+        - retries intermittent failures,
+        - refreshes expired tokens,
+        - merges and chronologically sorts the results.
 
         Parameters
         ----------
         symbol : str
-            The market symbol (e.g., "MSFT").
+            Market symbol.
         first_date : str
-            Start timestamp (ISO 8601 format).
-        interval : int, default=1
-            Bar interval (minutes for intraday data).
-        unit : str, default="Daily"
-            Bar time unit: "Minute", "Daily", "Weekly", "Monthly".
+            Start date (various formats accepted).
+        interval : int
+            Bar interval (minutes for intraday).
+        unit : str
+            Bar unit ("Minute", "Daily", "Weekly", "Monthly").
         last_date : str, optional
-            End timestamp (ISO 8601). Defaults to today's date.
+            End date. Defaults to today's date.
         sessiontemplate : str, optional
-            U.S. session template, ignored for non-US symbols.
-        max_workers : int, default=15
-            Number of threads used for concurrent chunk retrieval.
+            Optional TS session template for filtering.
+        max_workers : int
+            Number of threads used for chunked retrieval.
 
         Returns
         -------
         dict
-            Combined JSON response containing all retrieved bars,
-            sorted in chronological order.
-        """
-        
-        def organize_params(start: str, end: str) -> Dict[str, Any]:
-            """
-            Prepare the query parameters for a bar request.
-            Filters out None values to avoid invalid API params.
-            """
-            params = {
-                "interval": interval,
-                "unit": unit,
-                "firstdate": start,
-                "lastdate": end,
-                "sessiontemplate": sessiontemplate,
-            }
-            return {k: v for k, v in params.items() if v is not None}
+            Merged and chronologically sorted API response.
 
-        if not last_date:
-            # If last_date is None, default to today's date.
+        Notes
+        -----
+        - Bars may be missing if the underlying market had no trading
+          session on specific dates.
+        - TradeStation may return empty bar sets without raising
+          errors; these are logged as warnings during chunk retrieval.
+        """
+        if unit not in {"Minute", "Daily", "Weekly", "Monthly"}:
+            raise ValueError("Invalid unit provided.")
+
+        if last_date is None:
             last_date = date.today().strftime("%Y-%m-%d")
 
-        if first_date > last_date:
+        f_date = self._normalize_date(first_date)
+        l_date = self._normalize_date(last_date)
+
+        if f_date > l_date:
             raise Exception("first_data can't be greater then last_date")
 
-        url = f"{self.token_manager.base_api_url}/marketdata/barcharts/{symbol}"
-        
+        url = (
+            f"{self.token_manager.base_api_url}/marketdata/"
+            f"barcharts/{symbol}"
+        )
+
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
-        # We first create an array containing the range of dates of interest.
         dates = np.arange(
-            first_date,
-            np.datetime64(last_date) + np.timedelta64(1, "D"),
+            np.datetime64(f_date),
+            np.datetime64(l_date) + np.timedelta64(1, "D"),
             dtype="datetime64[D]",
         )
 
-        # Validate the unit parameter.
-        if unit not in {"Minute", "Daily", "Weekly", "Monthly"}:
-            raise ValueError("Please set `unit` with a proper resolution.")
-
-        # We estimate the number of bars to retrieve.
         multiplier = (
             1440 if unit == "Minute"
             else 365 if unit == "Daily"
             else 52 if unit == "Weekly"
             else 12
         )
+
         bars_est = len(dates) * multiplier / interval
 
-        # If the estimated number of bars doesn't exceed the TradeStation
-        # threshold, we make a single request.
+        # If below TS threshold, perform a single call.
         if bars_est <= self.ts_max_bars_thresh:
-            params = organize_params(first_date, last_date)
-            return self.make_request(url=url, headers=headers, params=params)
+            params = {
+                "interval": interval,
+                "unit": unit,
+                "firstdate": f_date,
+                "lastdate": l_date,
+                "sessiontemplate": sessiontemplate,
+            }
+            params = {k: v for k, v in params.items() if v is not None}
 
-        # Determine the maximum number of days per chunk.
-        # Example: with 1-minute data and a limit of 57,600 bars,
-        # we can handle roughly 40 days per request.
+            return self._request_with_retry(
+                url=url,
+                headers=headers,
+                params=params,
+            )
+
+        # Otherwise chunk the request.
         max_days = int(self.ts_max_bars_thresh * interval / multiplier)
-        chunks = []
+        chunks = self._chunk_dates(dates, max_days)
 
-        for i in range(0, len(dates), max_days):
-            # We loop with step = max_days and store start/end dates
-            # for each chunk of the request.
-            start = str(dates[i])
-            end = str(dates[min(i + max_days - 1, len(dates) - 1)])
-            chunks.append((start, end))
-
-        merged = {}
-        total_chunks = len(chunks)
-        completed = 0
+        merged: Dict[str, Any] = {"Bars": []}
 
         with Progress() as progress:
-            # Fancy progress bar
             task = progress.add_task(
-                f"[cyan]Fetching {symbol}...", total=total_chunks
+                f"[cyan]Fetching {symbol}...", total=len(chunks)
             )
 
             with ThreadPoolExecutor(max_workers=max_workers) as ex:
-                futs = {
+                futures = {
                     ex.submit(
-                        self.make_request,
-                        url,
-                        headers,
-                        organize_params(start, end),
+                        self._request_with_retry,
+                        url=url,
+                        headers=headers.copy(),
+                        params={
+                            "interval": interval,
+                            "unit": unit,
+                            "firstdate": start,
+                            "lastdate": end,
+                            "sessiontemplate": sessiontemplate,
+                        },
                     ): (start, end)
                     for start, end in chunks
                 }
 
-                for fut in as_completed(futs):
-                    start, end = futs[fut]
+                for fut in as_completed(futures):
+                    start, end = futures[fut]
+                    progress.advance(task, 1)
+
                     try:
                         res = fut.result()
-                        # Update progress per completed chunk.
-                        progress.advance(task, 1)
+                    except Exception:
+                        continue
 
-                        if not merged:
-                            # First successful chunk
-                            merged = res
-                        else:
-                            for k, v in res.items():
-                                if k == "Bars":
-                                    merged.setdefault("Bars", []).extend(v)
-                                else:
-                                    merged[k] = v
+                    if not res or not res.get("Bars"):
+                        print(
+                            f"[WARN] Empty bars for chunk {start} → {end}"
+                        )
+                        continue
 
-                    except Exception as e:
-                        # Skip failed chunks but continue processing others
-                        progress.advance(task, 1)
-                    completed += 1
+                    merged["Bars"].extend(res["Bars"])
 
-        # Ensure chronological order
-        if "Bars" in merged:
-            merged["Bars"].sort(key=lambda b: b.get("Time", ""))
+        merged["Bars"].sort(
+            key=lambda b: isoparse(b["Time"])
+        )
 
         return merged
 
@@ -194,54 +326,43 @@ class MarketDataAPI(BaseAPIClient):
         barsback: Optional[int] = None,
         last_date: Optional[str] = None,
         sessiontemplate: Optional[str] = None,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
-        Retrieve a fixed number of historical bars for a given symbol.
-
-        This method wraps the TradeStation `/barcharts` endpoint for
-        fetching recent or compact historical data using the `barsback`
-        parameter. It supports both intraday and higher timeframes
-        (daily, weekly, monthly).
+        Retrieve a fixed number of bars using the `barsback` parameter.
 
         Parameters
         ----------
         symbol : str
-            The market symbol (e.g., "AAPL" or "MSFT").
-        interval : int, default=1
-            Interval size for each bar (minutes for intraday data).
-        unit : str, default="Daily"
-            Time unit of the bars: "Minute", "Daily", "Weekly", "Monthly".
+            Market symbol.
+        interval : int
+            Bar interval.
+        unit : str
+            Bar unit.
         barsback : int, optional
-            Number of bars to retrieve. Must not exceed 57,600.
+            Number of bars to retrieve (max 57,600).
         last_date : str, optional
-            End timestamp (ISO 8601 format). Defaults to the latest bar.
+            Optional end date.
         sessiontemplate : str, optional
-            U.S. session template (USEQPre, USEQPost, etc.).
-            Ignored for non-U.S. instruments.
+            Optional session template.
 
         Returns
         -------
         dict
-            JSON response containing OHLCV bar data and metadata.
-
-        Raises
-        ------
-        ValueError
-            If `barsback` exceeds TradeStation API limits.
-        requests.exceptions.RequestException
-            If the HTTP request fails or the server returns an error.
+            API response.
 
         Notes
         -----
-        - Designed for small, recent lookback windows (e.g., last N bars).
-        - Use `get_bars_between()` for large or date-range queries.
+        Designed for simple, recent lookback queries. For larger
+        historical ranges prefer `get_bars_between()`.
         """
         if barsback and barsback > 57_600:
-            raise ValueError(
-                "Requests limited to 57,600 bars per call"
-            )
+            raise ValueError("Requests limited to 57,600 bars per call")
 
-        url = f"{self.token_manager.base_api_url}/marketdata/barcharts/{symbol}"
+        url = (
+            f"{self.token_manager.base_api_url}/marketdata/barcharts/"
+            f"{symbol}"
+        )
+
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -258,124 +379,132 @@ class MarketDataAPI(BaseAPIClient):
             task = progress.add_task(
                 f"[cyan]Fetching {symbol}...", total=1
             )
-
-            response = self.make_request(
+            res = self._request_with_retry(
                 url=url,
                 headers=headers,
-                params=params
+                params=params,
             )
-
             progress.advance(task, 1)
-
-            return response
+            return res
 
     def get_symbol_details(
         self,
         *,
-        symbols: list[str]
-    ) -> Dict:
+        symbols: List[str]
+    ) -> Dict[str, Any]:
         """
-        Retrieve detailed metadata for one or more market symbols.
+        Retrieve descriptive metadata for one or more symbols.
 
         Parameters
         ----------
         symbols : list[str]
-            A list of market symbols (e.g., ["AAPL", "MSFT"]).
+            List of market symbols.
 
         Returns
         -------
         dict
-            JSON response with symbol metadata.
+            API response containing symbol details.
 
         Raises
         ------
         ValueError
-            If no symbols are provided or the list exceeds API limits.
-        requests.exceptions.RequestException
-            If the HTTP request fails or the server returns an error.
+            If input list is empty or exceeds API limits.
         """
         if not symbols:
             raise ValueError("At least one symbol must be provided.")
 
         if len(symbols) > 100:
-            raise ValueError("Maximum 100 symbols allowed per request.")
+            raise ValueError("Maximum 100 symbols per request.")
 
-        symbols_as_str = ",".join(
-            [requests.utils.quote(sym.strip()) for sym in symbols]
+        encoded = ",".join(
+            requests.utils.quote(s.strip()) for s in symbols
         )
 
         url = (
-            f"{self.token_manager.base_api_url}/marketdata/symbols/"
-            f"{symbols_as_str}"
+            f"{self.token_manager.base_api_url}/marketdata/"
+            f"symbols/{encoded}"
         )
+
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
-        return self.make_request(url=url, headers=headers, params={})
-    
-    def get_crypto_symbol_names(self) -> Dict:
+        return self._request_with_retry(
+            url=url,
+            headers=headers,
+            params={},
+        )
+
+    def get_crypto_symbol_names(self) -> Dict[str, Any]:
         """
-        Fetch crypto symbol names for all available cryptocurrency pairs
-        (e.g., BTCUSD, ETHUSD, LTCUSD, BCHUSD).
+        Retrieve the list of available cryptocurrency symbol names.
+
+        Returns
+        -------
+        dict
+            API response containing available crypto pairs.
 
         Notes
         -----
-        - These symbols provide market data only; they cannot be traded.
-        - Endpoint: /v3/marketdata/symbollists/cryptopairs/symbols
+        These symbols are informational only and cannot be traded
+        via this endpoint.
         """
         url = (
-            f"{self.token_manager.base_api_url}/marketdata/symbollists/"
-            "cryptopairs/symbolnames"
+            f"{self.token_manager.base_api_url}/marketdata/"
+            "symbollists/cryptopairs/symbolnames"
         )
+
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
-        return self.make_request(url=url, headers=headers, params={})
+        return self._request_with_retry(
+            url=url,
+            headers=headers,
+            params={},
+        )
 
     def get_quote_snapshots(
         self,
         *,
-        symbols: list[str]
-    ) -> Dict:
+        symbols: List[str]
+    ) -> Dict[str, Any]:
         """
-        Fetches a full snapshot of the latest quotes for the given symbols.
-
-        This method returns the most recent quote (Level 1) information
-        for each symbol specified. For real-time continuous updates,
-        use the streaming quote endpoint.
+        Fetch snapshot quotes for a list of symbols.
 
         Parameters
         ----------
-        symbols : list of str
-            One or more market symbols (e.g., ["AAPL", "MSFT"]).
+        symbols : list[str]
+            Symbols to retrieve quotes for.
 
         Returns
         -------
         dict
-            JSON response mapping each symbol to its latest quote data.
+            Latest quote snapshot for each symbol.
 
         Raises
         ------
         ValueError
-            If no symbols are provided or more than 100 symbols are specified.
+            For invalid symbol lists.
         """
-
         if not symbols:
             raise ValueError("At least one symbol must be provided.")
 
         if len(symbols) > 100:
-            raise ValueError("Maximum 100 symbols allowed per request.")
+            raise ValueError("Maximum 100 symbols per request.")
 
-        symbols_as_str = ",".join(
-            [requests.utils.quote(sym.strip()) for sym in symbols]
+        encoded = ",".join(
+            requests.utils.quote(s.strip()) for s in symbols
         )
 
         url = (
-            f"{self.token_manager.base_api_url}/marketdata/quotes/"
-            f"{symbols_as_str}"
+            f"{self.token_manager.base_api_url}/marketdata/"
+            f"quotes/{encoded}"
         )
+
         token = self.token_manager.get_token()
         headers = {"Authorization": f"Bearer {token}"}
 
-        return self.make_request(url=url, headers=headers, params={})
-
+        return self._request_with_retry(
+            url=url,
+            headers=headers,
+            params={},
+        )
